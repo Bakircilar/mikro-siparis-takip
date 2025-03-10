@@ -364,9 +364,11 @@ function OrderList() {
   }
 
   // Sayfa yüklendiğinde siparişleri getir
-  useEffect(() => {
-    fetchOrders();
-  }, []);
+useEffect(() => {
+  fetchOrders();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 
   // Kolon görünürlüğünü değiştirme fonksiyonu
   const toggleColumnVisibility = (columnId) => {

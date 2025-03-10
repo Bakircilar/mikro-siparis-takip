@@ -1,6 +1,5 @@
 // src/components/Analytics.js
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../config/supabase';
 import styled from 'styled-components';
 
 const AnalyticsContainer = styled.div`
