@@ -1,12 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../config/supabase';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTable, useSortBy, useFilters, usePagination } from 'react-table';
+import { supabase } from '../config/supabase';
+import ColumnManager from './ColumnManager';
 import styled from 'styled-components';
 
-// Tablo stillerini tanımlama
-const TableContainer = styled.div`
-  padding: 1rem;
-  
+const OrderListContainer = styled.div`
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+`;
+
+const FilterContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px;
+  align-items: flex-end;
+
+  .filter-group {
+    flex: 1 1 300px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  input, select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  button {
+    padding: 8px 15px;
+    background-color: #4a6da7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: #385687;
+    }
+  }
+`;
+
+const TableStyles = styled.div`
+  margin-top: 10px;
+  overflow-x: auto;
+
   table {
     border-spacing: 0;
     border: 1px solid #ddd;
@@ -22,7 +69,7 @@ const TableContainer = styled.div`
     
     th, td {
       margin: 0;
-      padding: 0.5rem;
+      padding: 10px;
       border-bottom: 1px solid #ddd;
       border-right: 1px solid #ddd;
       
@@ -34,15 +81,60 @@ const TableContainer = styled.div`
     th {
       background-color: #f2f2f2;
       font-weight: bold;
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        background-color: #e5e5e5;
+      }
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    tr:hover {
+      background-color: #f0f0f0;
     }
   }
-  
+
   .pagination {
-    padding: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    margin-top: 15px;
+
+    .pagination-buttons {
+      display: flex;
+      gap: 5px;
+
+      button {
+        background-color: #4a6da7;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 5px 10px;
+        cursor: pointer;
+
+        &:disabled {
+          background-color: #cccccc;
+          cursor: not-allowed;
+        }
+
+        &:hover:not(:disabled) {
+          background-color: #385687;
+        }
+      }
+    }
+
+    .pagination-info {
+      font-size: 14px;
+    }
   }
 `;
 
-// Filtre giriş bileşeni
+// Varsayılan kolon filtreleme bileşeni
 function DefaultColumnFilter({
   column: { filterValue, preFilteredRows, setFilter },
 }) {
@@ -55,7 +147,7 @@ function DefaultColumnFilter({
         setFilter(e.target.value || undefined)
       }}
       placeholder={`Ara (${count} kayıt)...`}
-      style={{ width: '100%' }}
+      style={{ width: '100%', marginTop: '5px', padding: '5px' }}
     />
   );
 }
@@ -63,68 +155,79 @@ function DefaultColumnFilter({
 function OrderList() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // Supabase'den veri çekme fonksiyonu
-  async function fetchOrders() {
-    try {
-      setLoading(true);
-      
-      // Sadece aktif siparişleri getir
-      const { data, error } = await supabase
-        .from('siparisler')
-        .select('*')
-        .eq('aktif', true)
-        .order('siparis_tarihi', { ascending: false });
-        
-      if (error) {
-        throw error;
-      }
-      
-      if (data) {
-        setOrders(data);
-      }
-      
-    } catch (error) {
-      console.error('Siparişler yüklenirken hata:', error);
-      alert('Siparişler yüklenemedi. Lütfen sayfayı yenileyin.');
-    } finally {
-      setLoading(false);
-    }
-  }
-  
-  // Sayfa yüklendiğinde siparişleri getir
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-  
-  // Tablo sütunlarını tanımla
-  const columns = React.useMemo(
+  const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
+  const [searchText, setSearchText] = useState('');
+  const [hiddenColumns, setHiddenColumns] = useState(['msg_s_0088']);
+
+  // Tüm alanları içeren kolon tanımları
+  const columns = useMemo(
     () => [
+      {
+        Header: 'ID',
+        accessor: 'msg_s_0088',
+      },
+      {
+        Header: 'Müşteri Kodu',
+        accessor: 'musteri_kodu',
+      },
       {
         Header: 'Müşteri Adı',
         accessor: 'musteri_adi',
+      },
+      {
+        Header: 'Bakiye',
+        accessor: 'bakiye',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'F-1',
+        accessor: 'f_1',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'F-5',
+        accessor: 'f_5',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'P-1',
+        accessor: 'p_1',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'P-5',
+        accessor: 'p_5',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'Son Giriş Maliyeti',
+        accessor: 'son_giris_maliyeti',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'Son Giriş Tarihi',
+        accessor: 'son_giris_tarihi'
+      },
+      {
+        Header: 'Güncel Maliyet',
+        accessor: 'guncel_maliyet',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'Stok Kodu',
+        accessor: 'stok_kodu',
       },
       {
         Header: 'Ürün Adı',
         accessor: 'urun_adi',
       },
       {
-        Header: 'Ürün Kodu',
-        accessor: 'stok_kodu',
+        Header: 'Birim',
+        accessor: 'birim',
       },
       {
-        Header: 'Sipariş Miktarı',
-        accessor: 'siparis_miktar',
-      },
-      {
-        Header: 'Birim Fiyat',
-        accessor: 'birim_fiyat',
-        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
-      },
-      {
-        Header: 'Toplam Tutar',
-        accessor: 'toplam_tutar',
-        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+        Header: 'Marka',
+        accessor: 'marka',
       },
       {
         Header: 'Sipariş Tarihi',
@@ -139,26 +242,163 @@ function OrderList() {
         accessor: 'belge_no',
       },
       {
-        Header: 'Depo',
+        Header: 'Sıra No',
+        accessor: 'sira_no',
+      },
+      {
+        Header: 'Sipariş Deposu',
         accessor: 'siparis_deposu',
       },
       {
-        Header: 'Satıcı',
+        Header: 'Merkez Depo',
+        accessor: 'merkez_depo_miktar',
+      },
+      {
+        Header: 'Topça Dükkan',
+        accessor: 'topca_depo_miktar',
+      },
+      {
+        Header: 'Sipariş Miktar',
+        accessor: 'siparis_miktar',
+      },
+      {
+        Header: 'Birim Fiyat',
+        accessor: 'birim_fiyat',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'Toplam Tutar',
+        accessor: 'toplam_tutar',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'Kalan Tutar',
+        accessor: 'kalan_tutar',
+        Cell: ({ value }) => value ? `₺${parseFloat(value).toFixed(2)}` : '-'
+      },
+      {
+        Header: 'Açıklama',
+        accessor: 'aciklama',
+      },
+      {
+        Header: 'Sektör Kodu',
+        accessor: 'sektor_kodu',
+      },
+      {
+        Header: 'Grup Kodu',
+        accessor: 'grup_kodu',
+      },
+      {
+        Header: 'Şehir',
+        accessor: 'sehir',
+      },
+      {
+        Header: 'Vade',
+        accessor: 'vade',
+      },
+      {
+        Header: 'Siparişi Giren',
         accessor: 'siparis_giren',
       }
     ],
     []
   );
-  
+
   // Tablo filtreleme ayarları
-  const defaultColumn = React.useMemo(
+  const defaultColumn = useMemo(
     () => ({
       Filter: DefaultColumnFilter,
     }),
     []
   );
-  
-  // react-table hook'larını kullanarak tabloyu oluştur
+
+  // Supabase'den veri çekme fonksiyonu
+  async function fetchOrders() {
+    try {
+      setLoading(true);
+      
+      // Kullanıcı filtrelemesi için oturum bilgilerini al
+      const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
+      
+      // Supabase sorgusu oluştur
+      let query = supabase
+        .from('siparisler')
+        .select('*')
+        .eq('aktif', true);
+      
+      // Kullanıcı rolüne göre filtreleme ekle
+      if (filterCriteria) {
+        if (filterCriteria.values) {
+          // Ofis rolü için çoklu değer filtreleme
+          query = query.in(filterCriteria.field, filterCriteria.values);
+        } else if (filterCriteria.value) {
+          // Satıcı rolü için tek değer filtreleme
+          query = query.ilike(filterCriteria.field, `%${filterCriteria.value}%`);
+        }
+      }
+      
+      // Tarih filtresi ekle
+      if (dateFilter.startDate) {
+        query = query.gte('siparis_tarihi', dateFilter.startDate);
+      }
+      
+      if (dateFilter.endDate) {
+        query = query.lte('siparis_tarihi', dateFilter.endDate);
+      }
+      
+      // Sorguyu çalıştır
+      const { data, error } = await query.order('siparis_tarihi', { ascending: false });
+          
+      if (error) throw error;
+      
+      if (data) {
+        setOrders(data);
+      }
+      
+    } catch (error) {
+      console.error('Siparişler yüklenirken hata:', error);
+      alert('Siparişler yüklenemedi. Lütfen sayfayı yenileyin.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Sayfa yüklendiğinde siparişleri getir
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  // Kolon görünürlüğünü değiştirme fonksiyonu
+  const toggleColumnVisibility = (columnId) => {
+    setHiddenColumns(prev => {
+      if (prev.includes(columnId)) {
+        return prev.filter(id => id !== columnId);
+      } else {
+        return [...prev, columnId];
+      }
+    });
+  };
+
+  // Tarih filtresini uygulama
+  const applyDateFilter = () => {
+    fetchOrders();
+  };
+
+  // Genel arama filtresini uygulama
+  const applySearchFilter = (rows) => {
+    if (!searchText) return rows;
+    
+    return rows.filter(row => {
+      return Object.values(row.values).some(value => {
+        if (value === null || value === undefined) return false;
+        return String(value)
+          .toLowerCase()
+          .includes(searchText.toLowerCase());
+      });
+    });
+  };
+
+  // react-table hook'ları
   const {
     getTableProps,
     getTableBodyProps,
@@ -173,99 +413,141 @@ function OrderList() {
     nextPage,
     previousPage,
     setPageSize,
+    allColumns,
+    visibleColumns,
     state: { pageIndex, pageSize },
   } = useTable(
     {
       columns,
       data: orders,
       defaultColumn,
-      initialState: { pageIndex: 0, pageSize: 20 },
+      initialState: { 
+        pageIndex: 0, 
+        pageSize: 20,
+        hiddenColumns,
+      },
+      filterTypes: {
+        globalFilter: applySearchFilter,
+      },
     },
     useFilters,
     useSortBy,
     usePagination
   );
-  
-  if (loading) {
+
+  // Sayfa değiştiğinde hidden columns'u güncelle
+  useEffect(() => {
+    if (allColumns.length > 0) {
+      allColumns.forEach(column => {
+        column.toggleHidden(hiddenColumns.includes(column.id));
+      });
+    }
+  }, [hiddenColumns, allColumns]);
+
+  if (loading && orders.length === 0) {
     return <div>Siparişler yükleniyor...</div>;
   }
-  
+
   return (
-    <TableContainer>
-      <h2>Aktif Siparişler</h2>
-      <button onClick={fetchOrders}>Yenile</button>
+    <OrderListContainer>
+      <h2>Sipariş Listesi</h2>
       
-      <table {...getTableProps()}>
-        <thead>
-          {headerGroups.map(headerGroup => (
-            <tr {...headerGroup.getHeaderGroupProps()}>
-              {headerGroup.headers.map(column => (
-                <th {...column.getHeaderProps(column.getSortByToggleProps())}>
-                  {column.render('Header')}
-                  <span>
-                    {column.isSorted
-                      ? column.isSortedDesc
-                        ? ' 🔽'
-                        : ' 🔼'
-                      : ''}
-                  </span>
-                  <div>{column.canFilter ? column.render('Filter') : null}</div>
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody {...getTableBodyProps()}>
-          {page.map((row) => {
-            prepareRow(row);
-            return (
-              <tr {...row.getRowProps()}>
-                {row.cells.map(cell => (
-                  <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+      <FilterContainer>
+        <div className="filter-group">
+          <label>Başlangıç Tarihi:</label>
+          <input
+            type="date"
+            value={dateFilter.startDate}
+            onChange={e => setDateFilter({...dateFilter, startDate: e.target.value})}
+          />
+        </div>
+        
+        <div className="filter-group">
+          <label>Bitiş Tarihi:</label>
+          <input
+            type="date"
+            value={dateFilter.endDate}
+            onChange={e => setDateFilter({...dateFilter, endDate: e.target.value})}
+          />
+        </div>
+        
+        <div className="filter-group">
+          <label>Genel Arama:</label>
+          <input
+            type="text"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Müşteri, ürün, belge no vb."
+          />
+        </div>
+        
+        <button onClick={applyDateFilter}>Filtrele</button>
+        <button onClick={fetchOrders}>Yenile</button>
+      </FilterContainer>
+      
+      <ColumnManager 
+        columns={allColumns} 
+        onColumnVisibilityChange={toggleColumnVisibility} 
+      />
+      
+      <TableStyles>
+        <table {...getTableProps()}>
+          <thead>
+            {headerGroups.map(headerGroup => (
+              <tr {...headerGroup.getHeaderGroupProps()}>
+                {headerGroup.headers.map(column => (
+                  <th {...column.getHeaderProps(column.getSortByToggleProps())}>
+                    {column.render('Header')}
+                    <span>
+                      {column.isSorted
+                        ? column.isSortedDesc
+                          ? ' 🔽'
+                          : ' 🔼'
+                        : ''}
+                    </span>
+                    <div>{column.canFilter ? column.render('Filter') : null}</div>
+                  </th>
                 ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      
-      <div className="pagination">
-        <button onClick={() => gotoPage(0)} disabled={!canPreviousPage}>
-          {'<<'}
-        </button>{' '}
-        <button onClick={() => previousPage()} disabled={!canPreviousPage}>
-          {'<'}
-        </button>{' '}
-        <button onClick={() => nextPage()} disabled={!canNextPage}>
-          {'>'}
-        </button>{' '}
-        <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>
-          {'>>'}
-        </button>{' '}
-        <span>
-          Sayfa{' '}
-          <strong>
-            {pageIndex + 1} / {pageOptions.length}
-          </strong>{' '}
-        </span>
-        <span>
-          | Sayfa başına:{' '}
-          <select
-            value={pageSize}
-            onChange={e => {
-              setPageSize(Number(e.target.value))
-            }}
-          >
-            {[10, 20, 30, 40, 50].map(pageSize => (
-              <option key={pageSize} value={pageSize}>
-                {pageSize}
-              </option>
             ))}
-          </select>
-        </span>
-      </div>
-    </TableContainer>
-  );
-}
-
-export default OrderList;
+          </thead>
+          <tbody {...getTableBodyProps()}>
+            {page.map((row) => {
+              prepareRow(row);
+              return (
+                <tr {...row.getRowProps()}>
+                  {row.cells.map(cell => (
+                    <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+                  ))}
+                </tr>
+              );
+            })}
+            {page.length === 0 && (
+              <tr>
+                <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '20px' }}>
+                  Gösterilecek sipariş bulunamadı.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        
+        <div className="pagination">
+          <div className="pagination-buttons">
+            <button onClick={() => gotoPage(0)} disabled={!canPreviousPage}>
+              {'<<'}
+            </button>
+            <button onClick={() => previousPage()} disabled={!canPreviousPage}>
+              {'<'}
+            </button>
+            <button onClick={() => nextPage()} disabled={!canNextPage}>
+              {'>'}
+            </button>
+            <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>
+              {'>>'}
+            </button>
+          </div>
+          
+          <div className="pagination-info">
+            <span>
+              Sayfa{' '}
