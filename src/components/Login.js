@@ -111,6 +111,10 @@ function Login() {
         userRole = 'admin';
         filterCriteria = null; // Tüm siparişleri görebilir
         break;
+      case 'upload': // Yeni kullanıcı tipi
+        userRole = 'upload';
+        filterCriteria = { onlyUpload: true }; // Hiçbir siparişi göremez, sadece yükleme yapabilir
+        break;
       default:
         setError('Geçersiz şifre! Lütfen tekrar deneyin.');
         return;

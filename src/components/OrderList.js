@@ -450,8 +450,22 @@ useEffect(() => {
     return <div>Siparişler yükleniyor...</div>;
   }
 
-  return (
-    <OrderListContainer>
+ // Upload rolündeki kullanıcılar sipariş listesi görmüyor
+ const userRole = sessionStorage.getItem('userRole');
+ const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
+
+ if (userRole === 'upload' || (filterCriteria && filterCriteria.onlyUpload)) {
+   return (
+     <OrderListContainer>
+       <h2>Excel Yükleme Modu</h2>
+       <p>Bu kullanıcı rolü sadece Excel yükleme işlemi yapabilir. Sipariş listesi görüntülenemiyor.</p>
+       <p>Excel yüklemek için üst menüdeki "Excel Yükle" butonunu kullanabilirsiniz.</p>
+     </OrderListContainer>
+   );
+ }
+
+ return (
+   <OrderListContainer>
       <h2>Sipariş Listesi</h2>
       
       <FilterContainer>
