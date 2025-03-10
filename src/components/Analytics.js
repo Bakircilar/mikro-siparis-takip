@@ -8,6 +8,10 @@ const AnalyticsContainer = styled.div`
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  
+  @media (max-width: 768px) {
+    padding: 15px 10px;
+  }
 `;
 
 const Header = styled.header`
@@ -39,6 +43,23 @@ const Header = styled.header`
       background-color: #385687;
     }
   }
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 15px;
+    
+    h1 {
+      margin-bottom: 15px;
+      font-size: 20px;
+      text-align: center;
+    }
+    
+    button {
+      width: 100%;
+      min-height: 44px;
+    }
+  }
 `;
 
 const ChartContainer = styled.div`
@@ -54,6 +75,14 @@ const ChartContainer = styled.div`
     border-bottom: 1px solid #eee;
     padding-bottom: 10px;
     margin-bottom: 20px;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 15px;
+    
+    h3 {
+      font-size: 16px;
+    }
   }
 `;
 
@@ -115,6 +144,8 @@ function Analytics() {
       
       // 2. Marka bazında bekleyen siparişler
       const { data: brandData, error: brandError } = await supabase
+        .from('siparisler')
+        .select('marka, siparis_miktar')
         .from('siparisler')
         .select('marka, siparis_miktar')
         .eq('aktif', true);
@@ -217,6 +248,9 @@ function Analytics() {
       </AnalyticsContainer>
     );
   }
+
+  // Mobil ekranlarda grafik yüksekliğini ayarla
+  const chartHeight = window.innerWidth < 768 ? 300 : 400;
   
   return (
     <AnalyticsContainer>
@@ -227,7 +261,7 @@ function Analytics() {
       
       <ChartContainer>
         <h3>En Çok Sipariş Edilen Ürünler</h3>
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={topProducts}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
@@ -241,18 +275,18 @@ function Analytics() {
       
       <ChartContainer>
         <h3>Marka Bazında Bekleyen Siparişler</h3>
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
             <Pie
               data={brandPendingOrders}
               cx="50%"
               cy="50%"
-              labelLine={true}
-              outerRadius={150}
+              labelLine={window.innerWidth >= 768}
+              outerRadius={window.innerWidth < 768 ? 100 : 150}
               fill="#8884d8"
               dataKey="value"
               nameKey="name"
-              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+              label={window.innerWidth >= 768 ? ({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%` : null}
             >
               {brandPendingOrders.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -266,7 +300,7 @@ function Analytics() {
       
       <ChartContainer>
         <h3>Müşteri Bazında Bekleyen Sipariş Tutarları</h3>
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={customerPendingOrders}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />

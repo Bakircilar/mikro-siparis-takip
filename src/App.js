@@ -1,9 +1,9 @@
-// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Analytics from './components/Analytics';
+import GlobalStyles from './styles/GlobalStyles';
 import './App.css';
 
 // Korumalı rota bileşeni - sadece giriş yapanlar erişebilir
@@ -35,6 +35,7 @@ const AdminRoute = ({ children }) => {
 function App() {
   return (
     <Router>
+      <GlobalStyles />
       <div className="App">
         <Routes>
           <Route path="/login" element={<Login />} />

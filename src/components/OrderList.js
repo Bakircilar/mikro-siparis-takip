@@ -8,6 +8,10 @@ const OrderListContainer = styled.div`
   padding: 20px;
   background-color: #f9f9f9;
   border-radius: 8px;
+  
+  @media (max-width: 768px) {
+    padding: 10px;
+  }
 `;
 
 const FilterContainer = styled.div`
@@ -46,6 +50,20 @@ const FilterContainer = styled.div`
 
     &:hover {
       background-color: #385687;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 10px;
+    
+    .filter-group {
+      flex: 1 1 100%;
+    }
+    
+    button {
+      width: 100%;
+      min-height: 44px;
     }
   }
 `;
@@ -130,6 +148,74 @@ const TableStyles = styled.div`
 
     .pagination-info {
       font-size: 14px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    /* Mobil görünüm için kart yapısı */
+    .mobile-view {
+      display: block;
+    }
+    
+    .desktop-view {
+      display: none;
+    }
+    
+    .card-view {
+      margin-bottom: 15px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 15px;
+    }
+    
+    .card-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+      
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+    
+    .card-label {
+      font-weight: bold;
+      flex: 1;
+    }
+    
+    .card-value {
+      flex: 2;
+      text-align: right;
+    }
+    
+    .pagination {
+      flex-direction: column;
+      align-items: center;
+      
+      .pagination-buttons {
+        margin-bottom: 10px;
+        
+        button {
+          min-height: 44px;
+          min-width: 44px;
+        }
+      }
+      
+      .pagination-info {
+        margin-bottom: 10px;
+      }
+    }
+  }
+  
+  @media (min-width: 769px) {
+    .mobile-view {
+      display: none;
+    }
+    
+    .desktop-view {
+      display: block;
     }
   }
 `;
@@ -364,11 +450,10 @@ function OrderList() {
   }
 
   // Sayfa yüklendiğinde siparişleri getir
-useEffect(() => {
-  fetchOrders();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Kolon görünürlüğünü değiştirme fonksiyonu
   const toggleColumnVisibility = (columnId) => {
@@ -450,22 +535,22 @@ useEffect(() => {
     return <div>Siparişler yükleniyor...</div>;
   }
 
- // Upload rolündeki kullanıcılar sipariş listesi görmüyor
- const userRole = sessionStorage.getItem('userRole');
- const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
+  // Upload rolündeki kullanıcılar sipariş listesi görmüyor
+  const userRole = sessionStorage.getItem('userRole');
+  const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
 
- if (userRole === 'upload' || (filterCriteria && filterCriteria.onlyUpload)) {
-   return (
-     <OrderListContainer>
-       <h2>Excel Yükleme Modu</h2>
-       <p>Bu kullanıcı rolü sadece Excel yükleme işlemi yapabilir. Sipariş listesi görüntülenemiyor.</p>
-       <p>Excel yüklemek için üst menüdeki "Excel Yükle" butonunu kullanabilirsiniz.</p>
-     </OrderListContainer>
-   );
- }
+  if (userRole === 'upload' || (filterCriteria && filterCriteria.onlyUpload)) {
+    return (
+      <OrderListContainer>
+        <h2>Excel Yükleme Modu</h2>
+        <p>Bu kullanıcı rolü sadece Excel yükleme işlemi yapabilir. Sipariş listesi görüntülenemiyor.</p>
+        <p>Excel yüklemek için üst menüdeki "Excel Yükle" butonunu kullanabilirsiniz.</p>
+      </OrderListContainer>
+    );
+  }
 
- return (
-   <OrderListContainer>
+  return (
+    <OrderListContainer>
       <h2>Sipariş Listesi</h2>
       
       <FilterContainer>
@@ -507,85 +592,171 @@ useEffect(() => {
       />
       
       <TableStyles>
-        <table {...getTableProps()}>
-          <thead>
-            {headerGroups.map(headerGroup => (
-              <tr {...headerGroup.getHeaderGroupProps()}>
-                {headerGroup.headers.map(column => (
-                  <th {...column.getHeaderProps(column.getSortByToggleProps())}>
-                    {column.render('Header')}
-                    <span>
-                      {column.isSorted
-                        ? column.isSortedDesc
-                          ? ' 🔽'
-                          : ' 🔼'
-                        : ''}
-                    </span>
-                    <div>{column.canFilter ? column.render('Filter') : null}</div>
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody {...getTableBodyProps()}>
-            {page.map((row) => {
-              prepareRow(row);
-              return (
-                <tr {...row.getRowProps()}>
-                  {row.cells.map(cell => (
-                    <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+        {/* Masaüstü Tablo Görünümü */}
+        <div className="desktop-view">
+          <table {...getTableProps()}>
+            <thead>
+              {headerGroups.map(headerGroup => (
+                <tr {...headerGroup.getHeaderGroupProps()}>
+                  {headerGroup.headers.map(column => (
+                    <th {...column.getHeaderProps(column.getSortByToggleProps())}>
+                      {column.render('Header')}
+                      <span>
+                        {column.isSorted
+                          ? column.isSortedDesc
+                            ? ' 🔽'
+                            : ' 🔼'
+                          : ''}
+                      </span>
+                      <div>{column.canFilter ? column.render('Filter') : null}</div>
+                    </th>
                   ))}
                 </tr>
-              );
-            })}
-            {page.length === 0 && (
-              <tr>
-                <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '20px' }}>
-                  Gösterilecek sipariş bulunamadı.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        
-        <div className="pagination">
-          <div className="pagination-buttons">
-            <button onClick={() => gotoPage(0)} disabled={!canPreviousPage}>
-              {'<<'}
-            </button>
-            <button onClick={() => previousPage()} disabled={!canPreviousPage}>
-              {'<'}
-            </button>
-            <button onClick={() => nextPage()} disabled={!canNextPage}>
-              {'>'}
-            </button>
-            <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>
-              {'>>'}
-            </button>
-          </div>
+              ))}
+            </thead>
+            <tbody {...getTableBodyProps()}>
+              {page.map((row) => {
+                prepareRow(row);
+                return (
+                  <tr {...row.getRowProps()}>
+                    {row.cells.map(cell => (
+                      <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+                    ))}
+                  </tr>
+                );
+              })}
+              {page.length === 0 && (
+                <tr>
+                  <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '20px' }}>
+                    Gösterilecek sipariş bulunamadı.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
           
-          <div className="pagination-info">
-            <span>
-              Sayfa{' '}
-              <strong>
-                {pageIndex + 1} / {pageOptions.length}
-              </strong>{' '}
-            </span>
-            <span>
-              | Sayfa başına:{' '}
-              <select
-                value={pageSize}
-                onChange={e => {
-                  setPageSize(Number(e.target.value))
-                }}
-              >
-                {[10, 20, 30, 40, 50].map(pageSize => (
-                  <option key={pageSize} value={pageSize}>
-                    {pageSize}
-                  </option>
-                ))}
-              </select>
-            </span>
+          <div className="pagination">
+            <div className="pagination-buttons">
+              <button onClick={() => gotoPage(0)} disabled={!canPreviousPage}>
+                {'<<'}
+              </button>
+              <button onClick={() => previousPage()} disabled={!canPreviousPage}>
+                {'<'}
+              </button>
+              <button onClick={() => nextPage()} disabled={!canNextPage}>
+                {'>'}
+              </button>
+              <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>
+                {'>>'}
+              </button>
+            </div>
+            
+            <div className="pagination-info">
+              <span>
+                Sayfa{' '}
+                <strong>
+                  {pageIndex + 1} / {pageOptions.length}
+                </strong>{' '}
+              </span>
+              <span>
+                | Sayfa başına:{' '}
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                  }}
+                >
+                  {[10, 20, 30, 40, 50].map(pageSize => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Mobil Kart Görünümü */}
+        <div className="mobile-view">
+          {page.map((row, i) => {
+            prepareRow(row);
+            return (
+              <div key={i} className="card-view">
+                {/* Önemli alanları önceliklendir */}
+                <div className="card-row">
+                  <div className="card-label">Müşteri:</div>
+                  <div className="card-value">{row.values.musteri_adi || '-'}</div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Ürün:</div>
+                  <div className="card-value">{row.values.urun_adi || '-'}</div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Sipariş Miktarı:</div>
+                  <div className="card-value">{row.values.siparis_miktar || '-'}</div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Toplam Tutar:</div>
+                  <div className="card-value">
+                    {row.values.toplam_tutar ? `₺${parseFloat(row.values.toplam_tutar).toFixed(2)}` : '-'}
+                  </div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Teslim Tarihi:</div>
+                  <div className="card-value">{row.values.teslim_tarihi || '-'}</div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Belge No:</div>
+                  <div className="card-value">{row.values.belge_no || '-'}</div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Sipariş Tarihi:</div>
+                  <div className="card-value">{row.values.siparis_tarihi || '-'}</div>
+                </div>
+                <div className="card-row">
+                  <div className="card-label">Depo:</div>
+                  <div className="card-value">{row.values.siparis_deposu || '-'}</div>
+                </div>
+              </div>
+            );
+          })}
+          
+          {page.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+              Gösterilecek sipariş bulunamadı.
+            </div>
+          )}
+          
+          {/* Mobil Pagination */}
+          <div className="pagination">
+            <div className="pagination-buttons">
+              <button onClick={() => gotoPage(0)} disabled={!canPreviousPage}>{'<<'}</button>
+              <button onClick={() => previousPage()} disabled={!canPreviousPage}>{'<'}</button>
+              <button onClick={() => nextPage()} disabled={!canNextPage}>{'>'}</button>
+              <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>{'>>'}</button>
+            </div>
+            <div className="pagination-info">
+              <div>
+                Sayfa {pageIndex + 1} / {pageOptions.length}
+              </div>
+              <div>
+                Sayfa başına:{' '}
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                  }}
+                  style={{ marginLeft: '5px' }}
+                >
+                  {[10, 20, 30, 40, 50].map(pageSize => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       </TableStyles>

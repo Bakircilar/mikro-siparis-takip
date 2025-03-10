@@ -64,6 +64,15 @@ const LoginForm = styled.form`
     margin-top: 16px;
     text-align: center;
   }
+  
+  @media (max-width: 768px) {
+    width: 90%;
+    padding: 25px;
+    
+    button {
+      min-height: 44px;
+    }
+  }
 `;
 
 function Login() {

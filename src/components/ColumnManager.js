@@ -50,6 +50,30 @@ const ColumnManagerContainer = styled.div`
       background-color: #385687;
     }
   }
+  
+  @media (max-width: 768px) {
+    padding: 10px;
+    
+    .column-checkboxes {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .checkbox-item {
+      width: 100%;
+      padding: 5px 0;
+    }
+    
+    .button-container {
+      flex-direction: column;
+      gap: 5px;
+      
+      button {
+        width: 100%;
+        min-height: 44px;
+      }
+    }
+  }
 `;
 
 function ColumnManager({ columns, onColumnVisibilityChange }) {
