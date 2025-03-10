@@ -549,5 +549,25 @@ function OrderList() {
           </div>
           
           <div className="pagination-info">
-            <span>
-              Sayfa{' '}
+  <span>
+    Sayfa{' '}
+    <strong>
+      {pageIndex + 1} / {pageOptions.length}
+    </strong>{' '}
+  </span>
+  <span>
+    | Sayfa başına:{' '}
+    <select
+      value={pageSize}
+      onChange={e => {
+        setPageSize(Number(e.target.value))
+      }}
+    >
+      {[10, 20, 30, 40, 50].map(pageSize => (
+        <option key={pageSize} value={pageSize}>
+          {pageSize}
+        </option>
+      ))}
+    </select>
+  </span>
+</div>
