@@ -555,7 +555,6 @@ function OrderList() {
   const [initialLoadDone, setInitialLoadDone] = useState(false); // İlk yükleme kontrolü için
   const [expandedGroups, setExpandedGroups] = useState({}); // Grup genişletme durumları için
   
-  
   const tableRef = useRef(null);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
@@ -1079,6 +1078,14 @@ function OrderList() {
     return result;
   }, [orders, activeGrouping]);
 
+  // Grup genişletme/daraltma fonksiyonu
+  const toggleGroupExpand = (groupName) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }));
+  };
+
   // react-table hook'ları
   const {
     getTableProps,
@@ -1179,17 +1186,6 @@ function OrderList() {
       return `Arama: "${searchText}"`;
     }
     return 'Tüm Kayıtlar';
-  };
-
-  // Genişletilmiş grup durumlarını tutan state
-  const [expandedGroups, setExpandedGroups] = useState({});
-
-  // Grup genişletme/daraltma fonksiyonu
-  const toggleGroupExpand = (groupName) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupName]: !prev[groupName]
-    }));
   };
 
   // Gruplandırılmış tablo verilerini render et 
