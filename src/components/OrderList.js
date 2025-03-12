@@ -537,6 +537,7 @@ function OrderList() {
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(true); // Filtre bölümü varsayılan olarak açık
   const [initialLoadDone, setInitialLoadDone] = useState(false); // İlk yükleme kontrolü için
+  const [groupByField, setGroupByField] = useState([]); // Gruplandırma alanı için state
   
   const tableRef = useRef(null);
   const touchStartY = useRef(0);
@@ -546,9 +547,12 @@ function OrderList() {
   const userId = sessionStorage.getItem('userId');
   
   // Supabase'den veri çekme fonksiyonu
-  const fetchOrders = useCallback(async (isRefreshing = false) => {
+  const fetchOrders = useCallback(async (isRefreshing = false, filterOptions = null) => {
     try {
       isRefreshing ? setRefreshing(true) : setLoading(true);
+      
+      // Filtreleme options parametresi verildiyse onu kullan
+      const options = filterOptions || dateFilter;
       
       // Kullanıcı filtrelemesi için oturum bilgilerini al
       const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
@@ -570,14 +574,17 @@ function OrderList() {
         }
       }
       
-      // Tarih filtresi ekle
-      if (dateFilter.startDate) {
-        query = query.gte('siparis_tarihi', dateFilter.startDate);
+      // Tarih filtresi ekle (options kullanarak)
+      if (options && options.startDate) {
+        query = query.gte('siparis_tarihi', options.startDate);
       }
       
-      if (dateFilter.endDate) {
-        query = query.lte('siparis_tarihi', dateFilter.endDate);
+      if (options && options.endDate) {
+        query = query.lte('siparis_tarihi', options.endDate);
       }
+      
+      // Debug için sorguyu konsola yazdıralım
+      console.log("Çalıştırılan sorgu:", query);
       
       // Sorguyu çalıştır
       const { data, error } = await query.order('siparis_tarihi', { ascending: false });
@@ -585,6 +592,7 @@ function OrderList() {
       if (error) throw error;
       
       if (data) {
+        console.log("Yüklenen sipariş sayısı:", data.length);
         setOrders(data);
       }
       
@@ -648,15 +656,23 @@ function OrderList() {
               break;
           }
           
-          setDateFilter({ startDate, endDate });
+          const newDateFilter = { startDate, endDate };
+          setDateFilter(newDateFilter);
+          
+          // Verileri bu filtre ile yükle
+          fetchOrders(false, newDateFilter);
         } else {
           // Varsayılan olarak son 7 günü göster
           const today = new Date();
           const startDate = format(subDays(today, 6), 'yyyy-MM-dd');
           const endDate = format(today, 'yyyy-MM-dd');
           
-          setDateFilter({ startDate, endDate });
+          const newDateFilter = { startDate, endDate };
+          setDateFilter(newDateFilter);
           setActiveQuickFilter('last7');
+          
+          // Verileri bu filtre ile yükle
+          fetchOrders(false, newDateFilter);
         }
         
         setInitialLoadDone(true);
@@ -667,18 +683,16 @@ function OrderList() {
       const startDate = format(subDays(today, 6), 'yyyy-MM-dd');
       const endDate = format(today, 'yyyy-MM-dd');
       
-      setDateFilter({ startDate, endDate });
+      const newDateFilter = { startDate, endDate };
+      setDateFilter(newDateFilter);
       setActiveQuickFilter('last7');
+      
+      // Verileri bu filtre ile yükle
+      fetchOrders(false, newDateFilter);
+      
       setInitialLoadDone(true);
     }
-  }, [userId, initialLoadDone]);
-
-  // İlk yükleme tamamlandığında verileri getir
-  useEffect(() => {
-    if (initialLoadDone) {
-      fetchOrders();
-    }
-  }, [fetchOrders, initialLoadDone]);
+  }, [userId, initialLoadDone, fetchOrders]);
   
   // Tüm alanları içeren kolon tanımları
   const columns = useMemo(
@@ -904,22 +918,38 @@ function OrderList() {
     setActiveQuickFilter(filterType);
     
     // Tarihleri güncelle
-    setDateFilter({ startDate, endDate });
+    const newDateFilter = { startDate, endDate };
+    setDateFilter(newDateFilter);
     
     // Filtre tercihini kaydet
     if (userId) {
       saveFilterPreferences(userId, { quickFilter: filterType });
     }
     
-    // Filtrelenmiş verileri getir
-    setTimeout(() => {
-      fetchOrders();
-    }, 0);
+    // Filtrelenmiş verileri getir (yeni filtre değerlerini doğrudan geçiriyoruz)
+    fetchOrders(false, newDateFilter);
   };
 
   // Gruplandırma işlevi
   const applyGrouping = (groupType) => {
-    setActiveGrouping(groupType === activeGrouping ? null : groupType);
+    // Önce mevcut gruplamayı temizle
+    setGroupByField([]);
+    
+    // Eğer aynı gruplamayı tekrar seçtiyse temizle, değilse yeni gruplamayı uygula
+    if (activeGrouping === groupType) {
+      setActiveGrouping(null);
+    } else {
+      setActiveGrouping(groupType);
+      
+      // Seçilen gruplama tipine göre ayarla
+      if (groupType === 'tarih') {
+        setGroupByField(['siparis_tarihi']);
+      } else if (groupType === 'musteri') {
+        setGroupByField(['musteri_adi']);
+      } else if (groupType === 'marka') {
+        setGroupByField(['marka']);
+      }
+    }
   };
 
   // Filtre bölümünü aç/kapat
@@ -984,7 +1014,7 @@ function OrderList() {
         pageIndex: 0, 
         pageSize: 20,
         hiddenColumns,
-        groupBy: []
+        groupBy: groupByField,
       },
       filterTypes: {
         globalFilter: applySearchFilter,
@@ -1006,20 +1036,28 @@ function OrderList() {
       });
     }
   }, [hiddenColumns, allColumns]);
-  
-  // Aktif gruplandırma değiştiğinde tablo gruplandırmasını güncelle
+
+  // groupByField değiştiğinde tablo state'ini güncelle
   useEffect(() => {
-    if (activeGrouping === 'tarih') {
-      // Tarih bazında gruplandırma
-      headerGroups[0]?.headers.find(h => h.id === 'siparis_tarihi')?.toggleGroupBy();
-    } else if (activeGrouping === 'musteri') {
-      // Müşteri bazında gruplandırma
-      headerGroups[0]?.headers.find(h => h.id === 'musteri_adi')?.toggleGroupBy();
-    } else if (activeGrouping === 'marka') {
-      // Marka bazında gruplandırma
-      headerGroups[0]?.headers.find(h => h.id === 'marka')?.toggleGroupBy();
+    if (headerGroups.length > 0 && activeGrouping) {
+      // Önce tüm grup başlıklarını sıfırla
+      headerGroups[0].headers.forEach(header => {
+        if (header.isGrouped) {
+          header.toggleGroupBy();
+        }
+      });
+      
+      // Sonra seçili gruplama alanını aktif et
+      if (groupByField.length > 0) {
+        const targetField = groupByField[0];
+        const targetHeader = headerGroups[0].headers.find(h => h.id === targetField);
+        
+        if (targetHeader && !targetHeader.isGrouped) {
+          targetHeader.toggleGroupBy();
+        }
+      }
     }
-  }, [activeGrouping, headerGroups]);
+  }, [groupByField, headerGroups, activeGrouping]);
 
   if (loading && orders.length === 0) {
     return (
