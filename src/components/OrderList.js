@@ -509,6 +509,108 @@ function OrderList() {
   // Kullanıcı ID'si
   const userId = sessionStorage.getItem('userId');
   
+  // Supabase'den veri çekme fonksiyonu
+  const fetchOrders = useCallback(async (isRefreshing = false) => {
+    try {
+      isRefreshing ? setRefreshing(true) : setLoading(true);
+      
+      // Kullanıcı filtrelemesi için oturum bilgilerini al
+      const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
+      
+      // Supabase sorgusu oluştur
+      let query = supabase
+        .from('siparisler')
+        .select('*')
+        .eq('aktif', true);
+      
+      // Kullanıcı rolüne göre filtreleme ekle
+      if (filterCriteria) {
+        if (filterCriteria.values) {
+          // Ofis rolü için çoklu değer filtreleme
+          query = query.in(filterCriteria.field, filterCriteria.values);
+        } else if (filterCriteria.value) {
+          // Satıcı rolü için tek değer filtreleme
+          query = query.ilike(filterCriteria.field, `%${filterCriteria.value}%`);
+        }
+      }
+      
+      // Tarih filtresi ekle
+      if (dateFilter.startDate) {
+        query = query.gte('siparis_tarihi', dateFilter.startDate);
+      }
+      
+      if (dateFilter.endDate) {
+        query = query.lte('siparis_tarihi', dateFilter.endDate);
+      }
+      
+      // Sorguyu çalıştır
+      const { data, error } = await query.order('siparis_tarihi', { ascending: false });
+          
+      if (error) throw error;
+      
+      if (data) {
+        setOrders(data);
+      }
+      
+    } catch (error) {
+      console.error('Siparişler yüklenirken hata:', error);
+      alert('Siparişler yüklenemedi. Lütfen sayfayı yenileyin.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [dateFilter]);
+
+  // Hızlı filtre butonlarını uygulama
+  const applyQuickFilter = useCallback((filterType) => {
+    let startDate = '';
+    let endDate = '';
+    const today = new Date();
+    
+    switch (filterType) {
+      case 'today':
+        startDate = format(today, 'yyyy-MM-dd');
+        endDate = format(today, 'yyyy-MM-dd');
+        break;
+      case 'yesterday':
+        const yesterday = subDays(today, 1);
+        startDate = format(yesterday, 'yyyy-MM-dd');
+        endDate = format(yesterday, 'yyyy-MM-dd');
+        break;
+      case 'thisWeek':
+        startDate = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        endDate = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        break;
+      case 'last7':
+        startDate = format(subDays(today, 6), 'yyyy-MM-dd');
+        endDate = format(today, 'yyyy-MM-dd');
+        break;
+      case 'thisMonth':
+        startDate = format(startOfMonth(today), 'yyyy-MM-dd');
+        endDate = format(endOfMonth(today), 'yyyy-MM-dd');
+        break;
+      case 'all':
+        startDate = '';
+        endDate = '';
+        break;
+      default:
+        return;
+    }
+    
+    setDateFilter({ startDate, endDate });
+    setActiveQuickFilter(filterType);
+    
+    // Filtre tercihini kaydet
+    if (userId) {
+      saveFilterPreferences(userId, { quickFilter: filterType });
+    }
+    
+    // Filtre değiştiğinde veriyi yeniden çek
+    setTimeout(() => {
+      fetchOrders();
+    }, 0);
+  }, [fetchOrders, userId]);
+
   // İlk yüklemede kullanıcı tercihlerini al
   useEffect(() => {
     if (userId) {
@@ -688,58 +790,6 @@ function OrderList() {
     []
   );
 
-  // Supabase'den veri çekme fonksiyonu
-  const fetchOrders = useCallback(async (isRefreshing = false) => {
-    try {
-      isRefreshing ? setRefreshing(true) : setLoading(true);
-      
-      // Kullanıcı filtrelemesi için oturum bilgilerini al
-      const filterCriteria = JSON.parse(sessionStorage.getItem('filterCriteria'));
-      
-      // Supabase sorgusu oluştur
-      let query = supabase
-        .from('siparisler')
-        .select('*')
-        .eq('aktif', true);
-      
-      // Kullanıcı rolüne göre filtreleme ekle
-      if (filterCriteria) {
-        if (filterCriteria.values) {
-          // Ofis rolü için çoklu değer filtreleme
-          query = query.in(filterCriteria.field, filterCriteria.values);
-        } else if (filterCriteria.value) {
-          // Satıcı rolü için tek değer filtreleme
-          query = query.ilike(filterCriteria.field, `%${filterCriteria.value}%`);
-        }
-      }
-      
-      // Tarih filtresi ekle
-      if (dateFilter.startDate) {
-        query = query.gte('siparis_tarihi', dateFilter.startDate);
-      }
-      
-      if (dateFilter.endDate) {
-        query = query.lte('siparis_tarihi', dateFilter.endDate);
-      }
-      
-      // Sorguyu çalıştır
-      const { data, error } = await query.order('siparis_tarihi', { ascending: false });
-          
-      if (error) throw error;
-      
-      if (data) {
-        setOrders(data);
-      }
-      
-    } catch (error) {
-      console.error('Siparişler yüklenirken hata:', error);
-      alert('Siparişler yüklenemedi. Lütfen sayfayı yenileyin.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [dateFilter]);
-
   // Sayfa yüklendiğinde siparişleri getir
   useEffect(() => {
     fetchOrders();
@@ -773,56 +823,6 @@ function OrderList() {
           .includes(searchText.toLowerCase());
       });
     });
-  };
-
-  // Hızlı filtre butonlarını uygulama
-  const applyQuickFilter = (filterType) => {
-    let startDate = '';
-    let endDate = '';
-    const today = new Date();
-    
-    switch (filterType) {
-      case 'today':
-        startDate = format(today, 'yyyy-MM-dd');
-        endDate = format(today, 'yyyy-MM-dd');
-        break;
-      case 'yesterday':
-        const yesterday = subDays(today, 1);
-        startDate = format(yesterday, 'yyyy-MM-dd');
-        endDate = format(yesterday, 'yyyy-MM-dd');
-        break;
-      case 'thisWeek':
-        startDate = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        endDate = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        break;
-      case 'last7':
-        startDate = format(subDays(today, 6), 'yyyy-MM-dd');
-        endDate = format(today, 'yyyy-MM-dd');
-        break;
-      case 'thisMonth':
-        startDate = format(startOfMonth(today), 'yyyy-MM-dd');
-        endDate = format(endOfMonth(today), 'yyyy-MM-dd');
-        break;
-      case 'all':
-        startDate = '';
-        endDate = '';
-        break;
-      default:
-        return;
-    }
-    
-    setDateFilter({ startDate, endDate });
-    setActiveQuickFilter(filterType);
-    
-    // Filtre tercihini kaydet
-    if (userId) {
-      saveFilterPreferences(userId, { quickFilter: filterType });
-    }
-    
-    // Filtre değiştiğinde veriyi yeniden çek
-    setTimeout(() => {
-      fetchOrders();
-    }, 0);
   };
 
   // Gruplandırma işlevi
