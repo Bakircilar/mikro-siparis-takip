@@ -5,7 +5,6 @@ import ColumnManager from './ColumnManager';
 import styled from 'styled-components';
 import { loadUserPreferences, saveFilterPreferences } from '../services/preferencesService';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { tr } from 'date-fns/locale';
 
 // Yeni stil bileşenleri ekleyelim
 const OrderListContainer = styled.div`
@@ -534,7 +533,7 @@ function OrderList() {
       setActiveQuickFilter('last7');
       applyQuickFilter('last7');
     }
-  }, [userId]);
+  }, [userId, applyQuickFilter]);
   
   // Tüm alanları içeren kolon tanımları
   const columns = useMemo(
@@ -878,7 +877,7 @@ function OrderList() {
     setPageSize,
     allColumns,
     visibleColumns,
-    state: { pageIndex, pageSize, groupBy, expanded },
+    state: { pageIndex, pageSize },
   } = useTable(
     {
       columns,
