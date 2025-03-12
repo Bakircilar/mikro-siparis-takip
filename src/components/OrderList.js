@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase';
 import ColumnManager from './ColumnManager';
 import styled from 'styled-components';
 import { loadUserPreferences, saveFilterPreferences } from '../services/preferencesService';
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 
 // Yeni stil bileşenleri ekleyelim
 const OrderListContainer = styled.div`
@@ -506,6 +506,22 @@ const LoadingSpinner = styled.div`
   }
 `;
 
+// Tarih düzeltme fonksiyonu - 1 gün ekleme yapıyor
+function fixDate(dateString) {
+  if (!dateString) return '-';
+  try {
+    // Tarih string'ini parse et
+    const date = parseISO(dateString);
+    // 1 gün ekleyerek düzelt
+    const fixedDate = addDays(date, 1);
+    // Formatlayarak döndür
+    return format(fixedDate, 'yyyy-MM-dd');
+  } catch (error) {
+    console.error('Tarih dönüştürme hatası:', error);
+    return dateString || '-';
+  }
+}
+
 // Varsayılan kolon filtreleme bileşeni
 function DefaultColumnFilter({
   column: { filterValue, preFilteredRows, setFilter },
@@ -537,7 +553,6 @@ function OrderList() {
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(true); // Filtre bölümü varsayılan olarak açık
   const [initialLoadDone, setInitialLoadDone] = useState(false); // İlk yükleme kontrolü için
-  const [groupByField, setGroupByField] = useState([]); // Gruplandırma alanı için state
   
   const tableRef = useRef(null);
   const touchStartY = useRef(0);
@@ -582,9 +597,6 @@ function OrderList() {
       if (options && options.endDate) {
         query = query.lte('siparis_tarihi', options.endDate);
       }
-      
-      // Debug için sorguyu konsola yazdıralım
-      console.log("Çalıştırılan sorgu:", query);
       
       // Sorguyu çalıştır
       const { data, error } = await query.order('siparis_tarihi', { ascending: false });
@@ -741,7 +753,8 @@ function OrderList() {
       },
       {
         Header: 'Son Giriş Tarihi',
-        accessor: 'son_giris_tarihi'
+        accessor: 'son_giris_tarihi',
+        Cell: ({ value }) => fixDate(value) // Tarih düzeltme fonksiyonu uygulandı
       },
       {
         Header: 'Güncel Maliyet',
@@ -767,10 +780,12 @@ function OrderList() {
       {
         Header: 'Sipariş Tarihi',
         accessor: 'siparis_tarihi',
+        Cell: ({ value }) => fixDate(value) // Tarih düzeltme fonksiyonu uygulandı
       },
       {
         Header: 'Teslim Tarihi',
         accessor: 'teslim_tarihi',
+        Cell: ({ value }) => fixDate(value) // Tarih düzeltme fonksiyonu uygulandı
       },
       {
         Header: 'Belge No',
@@ -846,6 +861,38 @@ function OrderList() {
     }),
     []
   );
+
+  // Mevcut siparişleri grupla
+  const groupData = useMemo(() => {
+    if (!activeGrouping || !orders.length) {
+      return orders;
+    }
+
+    // Verileri grupla ve ilk seviyede göster
+    const groupedData = [...orders];
+    
+    // Gruplandırma işlemi için ilgili alanları tanımla
+    let groupField = '';
+    if (activeGrouping === 'tarih') {
+      groupField = 'siparis_tarihi';
+    } else if (activeGrouping === 'musteri') {
+      groupField = 'musteri_adi';
+    } else if (activeGrouping === 'marka') {
+      groupField = 'marka';
+    }
+    
+    // Gruplandırma işlemi öncesi verileri hazırla
+    groupedData.forEach(item => {
+      if (groupField === 'siparis_tarihi' && item[groupField]) {
+        // Tarihi düzeltip göster
+        item.groupValue = fixDate(item[groupField]);
+      } else {
+        item.groupValue = item[groupField] || 'Belirtilmemiş';
+      }
+    });
+
+    return groupedData;
+  }, [orders, activeGrouping]);
 
   // Kolon görünürlüğünü değiştirme fonksiyonu
   const toggleColumnVisibility = (columnId) => {
@@ -932,23 +979,12 @@ function OrderList() {
 
   // Gruplandırma işlevi
   const applyGrouping = (groupType) => {
-    // Önce mevcut gruplamayı temizle
-    setGroupByField([]);
-    
+    // Önce mevcut gruplamayı kontrol et 
     // Eğer aynı gruplamayı tekrar seçtiyse temizle, değilse yeni gruplamayı uygula
     if (activeGrouping === groupType) {
       setActiveGrouping(null);
     } else {
       setActiveGrouping(groupType);
-      
-      // Seçilen gruplama tipine göre ayarla
-      if (groupType === 'tarih') {
-        setGroupByField(['siparis_tarihi']);
-      } else if (groupType === 'musteri') {
-        setGroupByField(['musteri_adi']);
-      } else if (groupType === 'marka') {
-        setGroupByField(['marka']);
-      }
     }
   };
 
@@ -987,6 +1023,60 @@ function OrderList() {
     setDetailPanelOpen(false);
   };
 
+  // Gruplandırılmış veri oluşturma
+  const getGroupedData = useMemo(() => {
+    if (!activeGrouping || !orders.length) {
+      return orders;
+    }
+
+    const groups = {};
+    const groupField = 
+      activeGrouping === 'tarih' ? 'siparis_tarihi' : 
+      activeGrouping === 'musteri' ? 'musteri_adi' : 
+      activeGrouping === 'marka' ? 'marka' : null;
+
+    if (!groupField) return orders;
+
+    // Grupla
+    orders.forEach(order => {
+      let groupValue = order[groupField] || 'Belirtilmemiş';
+      
+      // Tarih gruplandırmalarında tarihi düzelt
+      if (groupField === 'siparis_tarihi' && groupValue) {
+        groupValue = fixDate(groupValue);
+      }
+      
+      if (!groups[groupValue]) {
+        groups[groupValue] = [];
+      }
+      groups[groupValue].push(order);
+    });
+
+    // Grup başlıkları ve satırları oluştur
+    const result = [];
+    Object.keys(groups).sort().forEach(group => {
+      // Grup başlığı satırı
+      result.push({
+        id: `group-${group}`,
+        isGrouped: true,
+        groupName: group,
+        items: groups[group],
+        originalLength: groups[group].length,
+        groupField: groupField,
+      });
+      
+      // Grup içindeki sipariş kayıtları
+      groups[group].forEach(order => {
+        result.push({
+          ...order,
+          groupParent: group
+        });
+      });
+    });
+
+    return result;
+  }, [orders, activeGrouping]);
+
   // react-table hook'ları
   const {
     getTableProps,
@@ -1008,23 +1098,19 @@ function OrderList() {
   } = useTable(
     {
       columns,
-      data: orders,
+      data: activeGrouping ? getGroupedData : orders,
       defaultColumn,
       initialState: { 
         pageIndex: 0, 
         pageSize: 20,
         hiddenColumns,
-        groupBy: groupByField,
       },
       filterTypes: {
         globalFilter: applySearchFilter,
       },
-      autoResetExpanded: false,
     },
     useFilters,
-    useGroupBy,
     useSortBy,
-    useExpanded,
     usePagination
   );
 
@@ -1036,28 +1122,6 @@ function OrderList() {
       });
     }
   }, [hiddenColumns, allColumns]);
-
-  // groupByField değiştiğinde tablo state'ini güncelle
-  useEffect(() => {
-    if (headerGroups.length > 0 && activeGrouping) {
-      // Önce tüm grup başlıklarını sıfırla
-      headerGroups[0].headers.forEach(header => {
-        if (header.isGrouped) {
-          header.toggleGroupBy();
-        }
-      });
-      
-      // Sonra seçili gruplama alanını aktif et
-      if (groupByField.length > 0) {
-        const targetField = groupByField[0];
-        const targetHeader = headerGroups[0].headers.find(h => h.id === targetField);
-        
-        if (targetHeader && !targetHeader.isGrouped) {
-          targetHeader.toggleGroupBy();
-        }
-      }
-    }
-  }, [groupByField, headerGroups, activeGrouping]);
 
   if (loading && orders.length === 0) {
     return (
@@ -1115,6 +1179,82 @@ function OrderList() {
     return 'Tüm Kayıtlar';
   };
 
+  // Genişletilmiş grup durumlarını tutan state
+  const [expandedGroups, setExpandedGroups] = useState({});
+
+  // Grup genişletme/daraltma fonksiyonu
+  const toggleGroupExpand = (groupName) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }));
+  };
+
+  // Gruplandırılmış tablo verilerini render et 
+  const renderGroupedRows = () => {
+    if (!activeGrouping) {
+      // Normal tablo satırlarını render et
+      return page.map((row) => {
+        prepareRow(row);
+        return (
+          <tr 
+            {...row.getRowProps()}
+            onClick={() => handleOrderSelect(row.original)}
+          >
+            {row.cells.map(cell => (
+              <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+            ))}
+          </tr>
+        );
+      });
+    }
+
+    // Gruplandırılmış satırları render et
+    const renderedRows = [];
+    let currentGroup = null;
+
+    page.forEach((row) => {
+      prepareRow(row);
+      
+      if (row.original && row.original.isGrouped) {
+        // Bu bir grup başlığı
+        currentGroup = row.original.groupName;
+        const isExpanded = expandedGroups[currentGroup] !== false; // Varsayılan olarak açık
+        
+        renderedRows.push(
+          <tr 
+            key={`group-${currentGroup}`}
+            className="group-row"
+            onClick={() => toggleGroupExpand(currentGroup)}
+          >
+            <td colSpan={visibleColumns.length}>
+              <span className={`expander ${isExpanded ? 'expanded' : ''}`}>
+                ▶
+              </span>
+              {currentGroup === 'Belirtilmemiş' ? 'Belirtilmemiş' : currentGroup} ({row.original.originalLength})
+            </td>
+          </tr>
+        );
+      } else if (!row.original.isGrouped && currentGroup === row.original.groupParent) {
+        // Bu bir alt satır, eğer grup genişletilmişse göster
+        if (expandedGroups[currentGroup] !== false) {
+          renderedRows.push(
+            <tr 
+              {...row.getRowProps()}
+              onClick={() => handleOrderSelect(row.original)}
+            >
+              {row.cells.map(cell => (
+                <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+              ))}
+            </tr>
+          );
+        }
+      }
+    });
+
+    return renderedRows;
+  };
+
   return (
     <OrderListContainer>
       <h2>Sipariş Listesi</h2>
@@ -1123,6 +1263,7 @@ function OrderList() {
         <div className="filter-header" onClick={toggleFilter}>
           <h3>
             <span>{getFilterSummary()}</span>
+            {activeGrouping && <span style={{marginLeft: '10px'}}> | Gruplandırma: {groupingLabels[activeGrouping]}</span>}
           </h3>
           <span className="toggle-icon">▼</span>
         </div>
@@ -1216,7 +1357,6 @@ function OrderList() {
                   {headerGroup.headers.map(column => (
                     <th 
                       {...column.getHeaderProps(column.getSortByToggleProps())}
-                      className={column.isGrouped ? 'group-header' : ''}
                     >
                       {column.render('Header')}
                       <span>
@@ -1233,41 +1373,23 @@ function OrderList() {
               ))}
             </thead>
             <tbody {...getTableBodyProps()}>
-              {page.map((row) => {
-                prepareRow(row);
-                return (
-                  <tr 
-                    {...row.getRowProps()}
-                    className={row.isGrouped ? 'group-row' : ''}
-                    onClick={() => {
-                      if (row.isGrouped) {
-                        row.toggleExpanded();
-                      } else {
-                        handleOrderSelect(row.original);
-                      }
-                    }}
-                  >
-                    {row.cells.map(cell => {
-                      if (cell.isGrouped) {
-                        return (
-                          <td {...cell.getCellProps()}>
-                            <span className={`expander ${row.isExpanded ? 'expanded' : ''}`}>
-                              ▶
-                            </span>
-                            {cell.render('Cell')} ({row.subRows.length})
-                          </td>
-                        );
-                      } else if (cell.isAggregated) {
-                        return <td {...cell.getCellProps()}>{cell.render('Aggregated')}</td>;
-                      } else if (cell.isPlaceholder) {
-                        return <td {...cell.getCellProps()}></td>;
-                      } else {
-                        return <td {...cell.getCellProps()}>{cell.render('Cell')}</td>;
-                      }
-                    })}
-                  </tr>
-                );
-              })}
+              {/* Eğer gruplandırma aktifse özel render, değilse normal render */}
+              {activeGrouping ? renderGroupedRows() : (
+                page.map((row) => {
+                  prepareRow(row);
+                  return (
+                    <tr 
+                      {...row.getRowProps()}
+                      onClick={() => handleOrderSelect(row.original)}
+                    >
+                      {row.cells.map(cell => (
+                        <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+                      ))}
+                    </tr>
+                  );
+                })
+              )}
+              
               {page.length === 0 && (
                 <tr>
                   <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '20px' }}>
@@ -1326,30 +1448,41 @@ function OrderList() {
             prepareRow(row);
             
             // Gruplandırma satırı
-            if (row.isGrouped) {
+            if (activeGrouping && row.original && row.original.isGrouped) {
+              const currentGroup = row.original.groupName;
+              const isExpanded = expandedGroups[currentGroup] !== false;
+              
               return (
                 <div 
-                  key={i} 
+                  key={`group-${currentGroup}`}
                   className="mobile-table-row" 
                   style={{ backgroundColor: '#e6f7ff' }}
-                  onClick={() => row.toggleExpanded()}
+                  onClick={() => toggleGroupExpand(currentGroup)}
                 >
                   <div className="mobile-table-header" style={{ display: 'flex', alignItems: 'center' }}>
                     <span style={{ 
                       marginRight: '10px', 
-                      transform: row.isExpanded ? 'rotate(90deg)' : 'rotate(0)',
+                      transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)',
                       transition: 'transform 0.2s'
                     }}>
                       ▶
                     </span>
-                    {row.cells.find(cell => cell.isGrouped)?.render('Cell')} ({row.subRows.length})
+                    {currentGroup === 'Belirtilmemiş' ? 'Belirtilmemiş' : currentGroup} ({row.original.originalLength})
                   </div>
                 </div>
               );
             }
             
-            // Normal sipariş satırı
-            if (!row.isGrouped && !row.isPlaceholder) {
+            // Alt satırlar (grup genişletilmişse)
+            if (activeGrouping && row.original && row.original.groupParent) {
+              // Eğer grup kapalıysa gösterme
+              if (expandedGroups[row.original.groupParent] === false) {
+                return null;
+              }
+            }
+            
+            // Normal satır (grup yoksa veya alt satırsa)
+            if (!row.original || !row.original.isGrouped) {
               const mainInfo = row.values.musteri_adi || row.values.belge_no || 'Sipariş Bilgisi';
               const subInfo = row.values.urun_adi || '';
               
@@ -1473,11 +1606,11 @@ function OrderList() {
               <h4>Sipariş Bilgileri</h4>
               <div className="detail-row">
                 <div className="detail-label">Sipariş Tarihi:</div>
-                <div className="detail-value">{selectedOrder.siparis_tarihi || '-'}</div>
+                <div className="detail-value">{fixDate(selectedOrder.siparis_tarihi) || '-'}</div>
               </div>
               <div className="detail-row">
                 <div className="detail-label">Teslim Tarihi:</div>
-                <div className="detail-value">{selectedOrder.teslim_tarihi || '-'}</div>
+                <div className="detail-value">{fixDate(selectedOrder.teslim_tarihi) || '-'}</div>
               </div>
               <div className="detail-row">
                 <div className="detail-label">Belge No:</div>
