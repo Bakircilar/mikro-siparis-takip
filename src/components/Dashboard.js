@@ -182,8 +182,79 @@ const UploadModal = styled.div`
   }
 `;
 
+// Kullanıcının adını gösterecek info alanı
+const UserInfo = styled.div`
+  margin-bottom: 10px;
+  background-color: #f8f8f8;
+  padding: 10px 15px;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  .user-details {
+    display: flex;
+    align-items: center;
+    
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #4a6da7;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 10px;
+      font-weight: bold;
+    }
+    
+    .name {
+      font-weight: 500;
+    }
+    
+    .role {
+      margin-left: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      
+      &.admin {
+        background-color: #2ecc71;
+        color: white;
+      }
+      
+      &.satici {
+        background-color: #3498db;
+        color: white;
+      }
+      
+      &.ofis {
+        background-color: #9b59b6;
+        color: white;
+      }
+      
+      &.upload {
+        background-color: #f39c12;
+        color: white;
+      }
+    }
+  }
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    
+    .user-details {
+      margin-bottom: 10px;
+    }
+  }
+`;
+
 function Dashboard() {
   const [userRole, setUserRole] = useState('');
+  const [userName, setUserName] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -193,17 +264,25 @@ function Dashboard() {
   
   useEffect(() => {
     const role = sessionStorage.getItem('userRole');
+    const name = sessionStorage.getItem('userName');
     setUserRole(role || '');
+    setUserName(name || '');
   }, []);
   
   const handleLogout = () => {
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('filterCriteria');
+    sessionStorage.removeItem('userId');
+    sessionStorage.removeItem('userName');
     navigate('/login');
   };
   
   const navigateToAnalytics = () => {
     navigate('/analytics');
+  };
+
+  const navigateToUserManagement = () => {
+    navigate('/users');
   };
 
   const openUploadModal = () => {
@@ -484,15 +563,42 @@ function Dashboard() {
     }
   }
   
+  // Kullanıcının ilk harfini avatar olarak göster
+  const getAvatarLetter = () => {
+    if (!userName) return "?";
+    return userName.charAt(0).toUpperCase();
+  };
+  
+  // Rol için etiket
+  const getRoleLabel = () => {
+    switch(userRole) {
+      case 'admin':
+        return 'Yönetici';
+      case 'satici':
+        return 'Satıcı';
+      case 'ofis':
+        return 'Ofis';
+      case 'upload':
+        return 'Veri Yükleyici';
+      default:
+        return 'Kullanıcı';
+    }
+  };
+  
   return (
     <DashboardContainer>
       <Header>
         <h1>Mikro ERP Sipariş Takip Sistemi</h1>
         <div className="button-container">
           {userRole === 'admin' && (
-            <button onClick={navigateToAnalytics}>
-              Grafikler ve Analizler
-            </button>
+            <>
+              <button onClick={navigateToAnalytics}>
+                Grafikler ve Analizler
+              </button>
+              <button onClick={navigateToUserManagement}>
+                Kullanıcı Yönetimi
+              </button>
+            </>
           )}
           {(userRole === 'admin' || userRole === 'upload') && (
             <button onClick={openUploadModal}>
@@ -504,6 +610,14 @@ function Dashboard() {
           </button>
         </div>
       </Header>
+      
+      <UserInfo>
+        <div className="user-details">
+          <div className="avatar">{getAvatarLetter()}</div>
+          <span className="name">{userName}</span>
+          <span className={`role ${userRole}`}>{getRoleLabel()}</span>
+        </div>
+      </UserInfo>
       
       <OrderList />
 

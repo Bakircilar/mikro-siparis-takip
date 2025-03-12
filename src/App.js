@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Analytics from './components/Analytics';
+import UserManagement from './components/UserManagement'; // Yeni bileşen
 import GlobalStyles from './styles/GlobalStyles';
 import './App.css';
 
@@ -52,6 +53,15 @@ function App() {
             element={
               <AdminRoute>
                 <Analytics />
+              </AdminRoute>
+            } 
+          />
+          {/* Yeni rota: Kullanıcı Yönetimi */}
+          <Route 
+            path="/users" 
+            element={
+              <AdminRoute>
+                <UserManagement />
               </AdminRoute>
             } 
           />

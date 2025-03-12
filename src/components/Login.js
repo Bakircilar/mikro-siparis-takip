@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { loginUser } from '../services/userService'; // Yeni servisi içe aktar
 
 const LoginContainer = styled.div`
   display: flex;
@@ -57,6 +58,11 @@ const LoginForm = styled.form`
     &:hover {
       background-color: #385687;
     }
+    
+    &:disabled {
+      background-color: #a0b1d1;
+      cursor: not-allowed;
+    }
   }
 
   .error {
@@ -76,8 +82,10 @@ const LoginForm = styled.form`
 `;
 
 function Login() {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   // Kullanıcı zaten giriş yapmışsa dashboard'a yönlendir
@@ -88,59 +96,50 @@ function Login() {
     }
   }, [navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     
-    // Şifre kontrolü ve kullanıcı yetkilerini belirleme
-    let userRole = '';
-    let filterCriteria = null;
-    
-    switch(password) {
-      case 'erhan1':
-        userRole = 'satici';
-        filterCriteria = { field: 'siparis_giren', value: 'erhan' };
-        break;
-      case 'büşra1':
-        userRole = 'satici';
-        filterCriteria = { field: 'siparis_giren', value: 'büşra' };
-        break;
-      case 'betül1':
-        userRole = 'satici';
-        filterCriteria = { field: 'siparis_giren', value: 'betül' };
-        break;
-      case 'merve1':
-        userRole = 'satici';
-        filterCriteria = { field: 'siparis_giren', value: 'merve' };
-        break;
-      case 'ofis1':
-        userRole = 'ofis';
-        filterCriteria = { field: 'siparis_giren', values: ['merve', 'betül'] };
-        break;
-      case 'boss1':
-        userRole = 'admin';
-        filterCriteria = null; // Tüm siparişleri görebilir
-        break;
-      case 'upload': // Yeni kullanıcı tipi
-        userRole = 'upload';
-        filterCriteria = { onlyUpload: true }; // Hiçbir siparişi göremez, sadece yükleme yapabilir
-        break;
-      default:
-        setError('Geçersiz şifre! Lütfen tekrar deneyin.');
-        return;
+    try {
+      // Kullanıcı servisini kullanarak giriş yap
+      const result = await loginUser(username, password);
+      
+      if (result.success) {
+        // Oturum bilgilerini kaydet
+        sessionStorage.setItem('userRole', result.userRole);
+        sessionStorage.setItem('filterCriteria', JSON.stringify(result.filterCriteria));
+        sessionStorage.setItem('userId', result.userData.id);
+        sessionStorage.setItem('userName', result.userData.kullanici_adi);
+        
+        // Dashboard'a yönlendir
+        navigate('/dashboard');
+      } else {
+        setError(result.message || 'Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
+      }
+    } catch (error) {
+      console.error('Giriş hatası:', error);
+      setError('Giriş sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
     }
-    
-    // Kullanıcı bilgilerini sessionStorage'a kaydet
-    sessionStorage.setItem('userRole', userRole);
-    sessionStorage.setItem('filterCriteria', JSON.stringify(filterCriteria));
-    
-    // Dashboard'a yönlendir
-    navigate('/dashboard');
   };
 
   return (
     <LoginContainer>
       <LoginForm onSubmit={handleSubmit}>
         <h2>Sipariş Takip Sistemi</h2>
+        <div className="form-group">
+          <label htmlFor="username">Kullanıcı Adı:</label>
+          <input
+            type="text"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Kullanıcı adınızı girin"
+            required
+          />
+        </div>
         <div className="form-group">
           <label htmlFor="password">Şifre:</label>
           <input
@@ -153,7 +152,9 @@ function Login() {
           />
         </div>
         {error && <div className="error">{error}</div>}
-        <button type="submit">Giriş Yap</button>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+        </button>
       </LoginForm>
     </LoginContainer>
   );
