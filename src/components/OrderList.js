@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useTable, useSortBy, useFilters, usePagination, useGroupBy, useExpanded } from 'react-table';
+import { useTable, useSortBy, useFilters, usePagination } from 'react-table';
 import { supabase } from '../config/supabase';
 import ColumnManager from './ColumnManager';
 import styled from 'styled-components';
@@ -863,37 +863,6 @@ function OrderList() {
     []
   );
 
-  // Mevcut siparişleri grupla
-  const groupData = useMemo(() => {
-    if (!activeGrouping || !orders.length) {
-      return orders;
-    }
-
-    // Verileri grupla ve ilk seviyede göster
-    const groupedData = [...orders];
-    
-    // Gruplandırma işlemi için ilgili alanları tanımla
-    let groupField = '';
-    if (activeGrouping === 'tarih') {
-      groupField = 'siparis_tarihi';
-    } else if (activeGrouping === 'musteri') {
-      groupField = 'musteri_adi';
-    } else if (activeGrouping === 'marka') {
-      groupField = 'marka';
-    }
-    
-    // Gruplandırma işlemi öncesi verileri hazırla
-    groupedData.forEach(item => {
-      if (groupField === 'siparis_tarihi' && item[groupField]) {
-        // Tarihi düzeltip göster
-        item.groupValue = fixDate(item[groupField]);
-      } else {
-        item.groupValue = item[groupField] || 'Belirtilmemiş';
-      }
-    });
-
-    return groupedData;
-  }, [orders, activeGrouping]);
 
   // Kolon görünürlüğünü değiştirme fonksiyonu
   const toggleColumnVisibility = (columnId) => {
