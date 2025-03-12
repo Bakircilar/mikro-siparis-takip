@@ -553,6 +553,8 @@ function OrderList() {
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(true); // Filtre bölümü varsayılan olarak açık
   const [initialLoadDone, setInitialLoadDone] = useState(false); // İlk yükleme kontrolü için
+  const [expandedGroups, setExpandedGroups] = useState({}); // Grup genişletme durumları için
+  
   
   const tableRef = useRef(null);
   const touchStartY = useRef(0);
