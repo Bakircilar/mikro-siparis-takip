@@ -43,17 +43,49 @@ const OrderListContainer = styled.div`
 `;
 
 const FilterContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
   margin-bottom: 20px;
-  align-items: flex-end;
   position: sticky;
   top: 0;
   background-color: #f9f9f9;
   z-index: 10;
-  padding: 10px 0;
-  border-bottom: 1px solid #eee;
+  border-radius: 8px;
+  border: 1px solid #eee;
+  overflow: hidden;
+
+  .filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: #f2f2f2;
+    cursor: pointer;
+    border-bottom: ${props => props.isOpen ? '1px solid #ddd' : 'none'};
+    
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+      display: flex;
+      align-items: center;
+    }
+    
+    .toggle-icon {
+      transition: transform 0.3s ease;
+      transform: ${props => props.isOpen ? 'rotate(180deg)' : 'rotate(0deg)'};
+      font-size: 18px;
+    }
+  }
+
+  .filter-content {
+    max-height: ${props => props.isOpen ? '1000px' : '0'};
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    padding: ${props => props.isOpen ? '15px' : '0 15px'};
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-end;
+  }
 
   .filter-group {
     flex: 1 1 300px;
@@ -142,8 +174,10 @@ const FilterContainer = styled.div`
   }
   
   @media (max-width: 768px) {
-    flex-direction: column;
-    gap: 10px;
+    .filter-content {
+      flex-direction: column;
+      gap: 10px;
+    }
     
     .filter-group {
       flex: 1 1 100%;
@@ -203,7 +237,7 @@ const TableStyles = styled.div`
       text-align: left;
       cursor: pointer;
       position: sticky;
-      top: 130px;
+      top: 0;
       z-index: 9;
 
       &:hover {
@@ -501,6 +535,8 @@ function OrderList() {
   const [activeGrouping, setActiveGrouping] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(true); // Filtre bölümü varsayılan olarak açık
+  const [initialLoadDone, setInitialLoadDone] = useState(false); // İlk yükleme kontrolü için
   
   const tableRef = useRef(null);
   const touchStartY = useRef(0);
@@ -561,59 +597,9 @@ function OrderList() {
     }
   }, [dateFilter]);
 
-  // Hızlı filtre butonlarını uygulama
-  const applyQuickFilter = useCallback((filterType) => {
-    let startDate = '';
-    let endDate = '';
-    const today = new Date();
-    
-    switch (filterType) {
-      case 'today':
-        startDate = format(today, 'yyyy-MM-dd');
-        endDate = format(today, 'yyyy-MM-dd');
-        break;
-      case 'yesterday':
-        const yesterday = subDays(today, 1);
-        startDate = format(yesterday, 'yyyy-MM-dd');
-        endDate = format(yesterday, 'yyyy-MM-dd');
-        break;
-      case 'thisWeek':
-        startDate = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        endDate = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        break;
-      case 'last7':
-        startDate = format(subDays(today, 6), 'yyyy-MM-dd');
-        endDate = format(today, 'yyyy-MM-dd');
-        break;
-      case 'thisMonth':
-        startDate = format(startOfMonth(today), 'yyyy-MM-dd');
-        endDate = format(endOfMonth(today), 'yyyy-MM-dd');
-        break;
-      case 'all':
-        startDate = '';
-        endDate = '';
-        break;
-      default:
-        return;
-    }
-    
-    setDateFilter({ startDate, endDate });
-    setActiveQuickFilter(filterType);
-    
-    // Filtre tercihini kaydet
-    if (userId) {
-      saveFilterPreferences(userId, { quickFilter: filterType });
-    }
-    
-    // Filtre değiştiğinde veriyi yeniden çek
-    setTimeout(() => {
-      fetchOrders();
-    }, 0);
-  }, [fetchOrders, userId]);
-
   // İlk yüklemede kullanıcı tercihlerini al
   useEffect(() => {
-    if (userId) {
+    if (userId && !initialLoadDone) {
       loadUserPreferences(userId).then(result => {
         if (result.success && result.preferences.kolon_tercihleri) {
           setHiddenColumns(result.preferences.kolon_tercihleri);
@@ -622,20 +608,77 @@ function OrderList() {
         // Aktif filtre varsa uygula
         if (result.success && result.preferences.filtre_tercihleri 
             && result.preferences.filtre_tercihleri.quickFilter) {
-          setActiveQuickFilter(result.preferences.filtre_tercihleri.quickFilter);
-          applyQuickFilter(result.preferences.filtre_tercihleri.quickFilter);
+          
+          // Mevcut quick filter'ı ayarlayalım
+          const savedFilter = result.preferences.filtre_tercihleri.quickFilter;
+          setActiveQuickFilter(savedFilter);
+          
+          // Ve tarihleri set edelim
+          const today = new Date();
+          let startDate = '';
+          let endDate = '';
+          
+          switch (savedFilter) {
+            case 'today':
+              startDate = format(today, 'yyyy-MM-dd');
+              endDate = format(today, 'yyyy-MM-dd');
+              break;
+            case 'yesterday':
+              const yesterday = subDays(today, 1);
+              startDate = format(yesterday, 'yyyy-MM-dd');
+              endDate = format(yesterday, 'yyyy-MM-dd');
+              break;
+            case 'thisWeek':
+              startDate = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+              endDate = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+              break;
+            case 'last7':
+              startDate = format(subDays(today, 6), 'yyyy-MM-dd');
+              endDate = format(today, 'yyyy-MM-dd');
+              break;
+            case 'thisMonth':
+              startDate = format(startOfMonth(today), 'yyyy-MM-dd');
+              endDate = format(endOfMonth(today), 'yyyy-MM-dd');
+              break;
+            case 'all':
+              startDate = '';
+              endDate = '';
+              break;
+            default:
+              break;
+          }
+          
+          setDateFilter({ startDate, endDate });
         } else {
           // Varsayılan olarak son 7 günü göster
+          const today = new Date();
+          const startDate = format(subDays(today, 6), 'yyyy-MM-dd');
+          const endDate = format(today, 'yyyy-MM-dd');
+          
+          setDateFilter({ startDate, endDate });
           setActiveQuickFilter('last7');
-          applyQuickFilter('last7');
         }
+        
+        setInitialLoadDone(true);
       });
-    } else {
+    } else if (!initialLoadDone) {
       // Kullanıcı ID yoksa varsayılan olarak son 7 günü göster
+      const today = new Date();
+      const startDate = format(subDays(today, 6), 'yyyy-MM-dd');
+      const endDate = format(today, 'yyyy-MM-dd');
+      
+      setDateFilter({ startDate, endDate });
       setActiveQuickFilter('last7');
-      applyQuickFilter('last7');
+      setInitialLoadDone(true);
     }
-  }, [userId, applyQuickFilter]);
+  }, [userId, initialLoadDone]);
+
+  // İlk yükleme tamamlandığında verileri getir
+  useEffect(() => {
+    if (initialLoadDone) {
+      fetchOrders();
+    }
+  }, [fetchOrders, initialLoadDone]);
   
   // Tüm alanları içeren kolon tanımları
   const columns = useMemo(
@@ -790,11 +833,6 @@ function OrderList() {
     []
   );
 
-  // Sayfa yüklendiğinde siparişleri getir
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
-
   // Kolon görünürlüğünü değiştirme fonksiyonu
   const toggleColumnVisibility = (columnId) => {
     setHiddenColumns(prev => {
@@ -825,9 +863,68 @@ function OrderList() {
     });
   };
 
+  // Hızlı filtre butonlarını uygulama
+  const applyQuickFilter = (filterType) => {
+    // Önceki useEffect'teki gibi tarihleri ayarla
+    const today = new Date();
+    let startDate = '';
+    let endDate = '';
+    
+    switch (filterType) {
+      case 'today':
+        startDate = format(today, 'yyyy-MM-dd');
+        endDate = format(today, 'yyyy-MM-dd');
+        break;
+      case 'yesterday':
+        const yesterday = subDays(today, 1);
+        startDate = format(yesterday, 'yyyy-MM-dd');
+        endDate = format(yesterday, 'yyyy-MM-dd');
+        break;
+      case 'thisWeek':
+        startDate = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        endDate = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        break;
+      case 'last7':
+        startDate = format(subDays(today, 6), 'yyyy-MM-dd');
+        endDate = format(today, 'yyyy-MM-dd');
+        break;
+      case 'thisMonth':
+        startDate = format(startOfMonth(today), 'yyyy-MM-dd');
+        endDate = format(endOfMonth(today), 'yyyy-MM-dd');
+        break;
+      case 'all':
+        startDate = '';
+        endDate = '';
+        break;
+      default:
+        return;
+    }
+    
+    // Active Quick Filter'ı güncelle
+    setActiveQuickFilter(filterType);
+    
+    // Tarihleri güncelle
+    setDateFilter({ startDate, endDate });
+    
+    // Filtre tercihini kaydet
+    if (userId) {
+      saveFilterPreferences(userId, { quickFilter: filterType });
+    }
+    
+    // Filtrelenmiş verileri getir
+    setTimeout(() => {
+      fetchOrders();
+    }, 0);
+  };
+
   // Gruplandırma işlevi
   const applyGrouping = (groupType) => {
     setActiveGrouping(groupType === activeGrouping ? null : groupType);
+  };
+
+  // Filtre bölümünü aç/kapat
+  const toggleFilter = () => {
+    setIsFilterOpen(!isFilterOpen);
   };
 
   // Pull-to-refresh fonksiyonları
@@ -966,67 +1063,90 @@ function OrderList() {
     marka: 'Markaya Göre'
   };
 
+  // Filtre özeti oluştur
+  const getFilterSummary = () => {
+    if (activeQuickFilter && quickFilterLabels[activeQuickFilter]) {
+      return `Filtreleme: ${quickFilterLabels[activeQuickFilter]}`;
+    }
+    if (dateFilter.startDate && dateFilter.endDate) {
+      return `Filtreleme: ${dateFilter.startDate} - ${dateFilter.endDate}`;
+    }
+    if (searchText) {
+      return `Arama: "${searchText}"`;
+    }
+    return 'Tüm Kayıtlar';
+  };
+
   return (
     <OrderListContainer>
       <h2>Sipariş Listesi</h2>
       
-      <FilterContainer>
-        <div className="filter-group">
-          <label>Başlangıç Tarihi:</label>
-          <input
-            type="date"
-            value={dateFilter.startDate}
-            onChange={e => setDateFilter({...dateFilter, startDate: e.target.value})}
-          />
+      <FilterContainer isOpen={isFilterOpen}>
+        <div className="filter-header" onClick={toggleFilter}>
+          <h3>
+            <span>{getFilterSummary()}</span>
+          </h3>
+          <span className="toggle-icon">▼</span>
         </div>
         
-        <div className="filter-group">
-          <label>Bitiş Tarihi:</label>
-          <input
-            type="date"
-            value={dateFilter.endDate}
-            onChange={e => setDateFilter({...dateFilter, endDate: e.target.value})}
-          />
-        </div>
-        
-        <div className="filter-group">
-          <label>Genel Arama:</label>
-          <input
-            type="text"
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            placeholder="Müşteri, ürün, belge no vb."
-          />
-        </div>
-        
-        <button onClick={applyDateFilter}>Filtrele</button>
-        <button onClick={() => fetchOrders()}>Yenile</button>
-        
-        {/* Hızlı filtre butonları */}
-        <div className="quick-filters">
-          {Object.keys(quickFilterLabels).map(filter => (
-            <button
-              key={filter}
-              className={activeQuickFilter === filter ? 'active' : ''}
-              onClick={() => applyQuickFilter(filter)}
-            >
-              {quickFilterLabels[filter]}
-            </button>
-          ))}
-        </div>
-        
-        {/* Gruplandırma butonları */}
-        <div className="grouping-options">
-          <span style={{ marginRight: '8px', alignSelf: 'center' }}>Gruplandır:</span>
-          {Object.keys(groupingLabels).map(group => (
-            <button
-              key={group}
-              className={activeGrouping === group ? 'active' : ''}
-              onClick={() => applyGrouping(group)}
-            >
-              {groupingLabels[group]}
-            </button>
-          ))}
+        <div className="filter-content">
+          <div className="filter-group">
+            <label>Başlangıç Tarihi:</label>
+            <input
+              type="date"
+              value={dateFilter.startDate}
+              onChange={e => setDateFilter({...dateFilter, startDate: e.target.value})}
+            />
+          </div>
+          
+          <div className="filter-group">
+            <label>Bitiş Tarihi:</label>
+            <input
+              type="date"
+              value={dateFilter.endDate}
+              onChange={e => setDateFilter({...dateFilter, endDate: e.target.value})}
+            />
+          </div>
+          
+          <div className="filter-group">
+            <label>Genel Arama:</label>
+            <input
+              type="text"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Müşteri, ürün, belge no vb."
+            />
+          </div>
+          
+          <button onClick={applyDateFilter}>Filtrele</button>
+          <button onClick={() => fetchOrders()}>Yenile</button>
+          
+          {/* Hızlı filtre butonları */}
+          <div className="quick-filters">
+            {Object.keys(quickFilterLabels).map(filter => (
+              <button
+                key={filter}
+                className={activeQuickFilter === filter ? 'active' : ''}
+                onClick={() => applyQuickFilter(filter)}
+              >
+                {quickFilterLabels[filter]}
+              </button>
+            ))}
+          </div>
+          
+          {/* Gruplandırma butonları */}
+          <div className="grouping-options">
+            <span style={{ marginRight: '8px', alignSelf: 'center' }}>Gruplandır:</span>
+            {Object.keys(groupingLabels).map(group => (
+              <button
+                key={group}
+                className={activeGrouping === group ? 'active' : ''}
+                onClick={() => applyGrouping(group)}
+              >
+                {groupingLabels[group]}
+              </button>
+            ))}
+          </div>
         </div>
       </FilterContainer>
       
